@@ -166,7 +166,7 @@
             const leftRefs = useRef({});
             const rightRefs = useRef({});
             const [lines, setLines] = useState([]);
-            const [activeDrag, setActiveDrag] = useState(null);
+            const [activeDrag, useState] = useState(null);
 
             useEffect(() => {
                 if (question.pairs) {
@@ -702,7 +702,8 @@
                 try {
                     await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('folders').add({
                         name: newFolderName.trim(),
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        uid: user.uid
                     });
                     setSuccessMsg("Folder berhasil dibuat!");
                     setNewFolderName('');
@@ -782,7 +783,8 @@
                     const payload = {
                         ...newExam, duration: parseInt(newExam.duration),
                         published: newExam.published !== false, 
-                        questions: newExam.questions.map(q => ({ ...q, points: parseInt(q.points) || 10 }))
+                        questions: newExam.questions.map(q => ({ ...q, points: parseInt(q.points) || 10 })),
+                        uid: user.uid
                     };
 
                     if (newExam.id) {
