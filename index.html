@@ -160,6 +160,168 @@
             );
         };
 
+        const MatchingComponent = ({ question, answer = {}, onAnswer, isReview = false }) => {
+            const [shuffledRight, setShuffledRight] = useState([]);
+            const containerRef = useRef(null);
+            const leftRefs = useRef({});
+            const rightRefs = useRef({});
+            const [lines, setLines] = useState([]);
+            const [activeDrag, setActiveDrag] = useState(null);
+
+            useEffect(() => {
+                if (question.pairs) {
+                    const rightItems = question.pairs.map(p => ({ id: p.id, text: p.right }));
+                    setShuffledRight([...rightItems].sort(() => Math.random() - 0.5));
+                }
+            }, [question.id]);
+
+            const getCoords = (el) => {
+                if (!el || !containerRef.current) return null;
+                const containerRect = containerRef.current.getBoundingClientRect();
+                const rect = el.getBoundingClientRect();
+                return {
+                    x: rect.left - containerRect.left + rect.width / 2,
+                    y: rect.top - containerRect.top + rect.height / 2
+                };
+            };
+
+            const updateLines = () => {
+                const newLines = [];
+                Object.keys(answer).forEach(leftId => {
+                    const rightId = answer[leftId];
+                    const leftEl = leftRefs.current[leftId];
+                    const rightEl = rightRefs.current[rightId];
+                    if (leftEl && rightEl) {
+                        const p1 = getCoords(leftEl);
+                        const p2 = getCoords(rightEl);
+                        if (p1 && p2) {
+                            let stroke = "#4f46e5"; 
+                            if (isReview) {
+                                stroke = (leftId === rightId) ? "#10b981" : "#ef4444"; 
+                            }
+                            newLines.push({ id: `${leftId}-${rightId}`, leftId, rightId, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, stroke });
+                        }
+                    }
+                });
+                setLines(newLines);
+            };
+
+            useEffect(() => {
+                const t = setTimeout(updateLines, 50);
+                window.addEventListener('resize', updateLines);
+                return () => { clearTimeout(t); window.removeEventListener('resize', updateLines); };
+            }, [answer, shuffledRight, isReview]);
+
+            const handlePointerDown = (e, leftId) => {
+                if (isReview) return;
+                const el = leftRefs.current[leftId];
+                const p = getCoords(el);
+                if (p) {
+                    setActiveDrag({ startId: leftId, x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+                }
+            };
+
+            useEffect(() => {
+                const handlePointerMove = (e) => {
+                    if (activeDrag && containerRef.current) {
+                        const containerRect = containerRef.current.getBoundingClientRect();
+                        setActiveDrag(prev => ({
+                            ...prev,
+                            x2: e.clientX - containerRect.left,
+                            y2: e.clientY - containerRect.top
+                        }));
+                    }
+                };
+                const handlePointerUp = (e) => {
+                    if (activeDrag) {
+                        const target = document.elementFromPoint(e.clientX, e.clientY);
+                        const rightNode = target?.closest('[data-right-id]');
+                        const rightId = rightNode?.dataset?.rightId;
+                        
+                        if (rightId) {
+                            const newAnswer = { ...answer };
+                            Object.keys(newAnswer).forEach(key => {
+                                if (newAnswer[key] === rightId) delete newAnswer[key];
+                            });
+                            newAnswer[activeDrag.startId] = rightId;
+                            onAnswer(newAnswer);
+                        }
+                        setActiveDrag(null);
+                    }
+                };
+
+                if (activeDrag) {
+                    window.addEventListener('pointermove', handlePointerMove);
+                    window.addEventListener('pointerup', handlePointerUp);
+                }
+                return () => {
+                    window.removeEventListener('pointermove', handlePointerMove);
+                    window.removeEventListener('pointerup', handlePointerUp);
+                };
+            }, [activeDrag, answer, onAnswer]);
+
+            const handleLineClick = (leftId) => {
+                if (isReview) return;
+                const newAnswer = { ...answer };
+                delete newAnswer[leftId];
+                onAnswer(newAnswer);
+            };
+
+            return (
+                <div ref={containerRef} className="relative w-full max-w-2xl mx-auto my-6" style={{ touchAction: activeDrag ? 'none' : 'auto' }}>
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ overflow: 'visible' }}>
+                        {lines.map(l => (
+                            <line 
+                                key={l.id} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} 
+                                stroke={l.stroke} strokeWidth="4" strokeLinecap="round"
+                                className={`pointer-events-auto transition-colors ${!isReview ? 'cursor-pointer hover:stroke-red-500' : ''}`}
+                                onClick={() => handleLineClick(l.leftId)}
+                            />
+                        ))}
+                        {activeDrag && (
+                            <line 
+                                x1={activeDrag.x1} y1={activeDrag.y1} x2={activeDrag.x2} y2={activeDrag.y2} 
+                                stroke="#818cf8" strokeWidth="4" strokeLinecap="round" strokeDasharray="5,5"
+                                className="pointer-events-none"
+                            />
+                        )}
+                    </svg>
+
+                    <div className="flex justify-between gap-8 md:gap-16 relative z-0">
+                        <div className="flex-1 space-y-4">
+                            {question.pairs?.map(p => (
+                                <div key={p.id} className="flex items-center justify-end gap-3">
+                                    <div className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-xl shadow-sm text-xs sm:text-sm font-bold text-slate-700 flex-1 text-right select-none break-words">
+                                        {p.left}
+                                    </div>
+                                    <div 
+                                        ref={el => leftRefs.current[p.id] = el}
+                                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex-shrink-0 touch-none transition-all ${isReview ? 'bg-slate-200' : 'bg-indigo-100 border-4 border-indigo-500 cursor-grab hover:scale-110 active:cursor-grabbing'}`}
+                                        onPointerDown={(e) => { e.preventDefault(); handlePointerDown(e, p.id); }}
+                                    ></div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex-1 space-y-4">
+                            {shuffledRight.map(p => (
+                                <div key={p.id} className="flex items-center justify-start gap-3">
+                                    <div 
+                                        ref={el => rightRefs.current[p.id] = el}
+                                        data-right-id={p.id}
+                                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex-shrink-0 transition-all ${isReview ? 'bg-slate-200' : 'bg-emerald-100 border-4 border-emerald-500 hover:scale-110'}`}
+                                    ></div>
+                                    <div className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-xl shadow-sm text-xs sm:text-sm font-bold text-slate-700 flex-1 select-none break-words">
+                                        {p.text}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         function App() {
             const [user, setUser] = useState(null);
             const [view, setView] = useState('login'); 
@@ -205,7 +367,8 @@
             const editorRef = useRef(null);
 
             const [pendingQuestion, setPendingQuestion] = useState({
-                type: 'mcq', text: '', options: ['', '', '', ''], correctAnswer: 0, points: 10
+                type: 'mcq', text: '', options: ['', '', '', ''], correctAnswer: 0, points: 10,
+                pairs: [{id: '1', left: '', right: ''}, {id: '2', left: '', right: ''}]
             });
 
             const [newExam, setNewExam] = useState({
@@ -319,9 +482,8 @@
                         setAdminEmail('');
                         setAdminPassword('');
                     } else {
-                        // Tolak akses jika di Firestore valuenya bukan role: guru
                         await auth.signOut();
-                        await auth.signInAnonymously(); // Kembalikan anonim agar UI siswa tidak rusak
+                        await auth.signInAnonymously(); 
                         setError("Akses ditolak: Akun ini tidak memiliki akses Guru.");
                     }
                 } catch (err) {
@@ -330,7 +492,6 @@
                         msg = "Kredensial tidak valid.";
                     }
                     setError("Gagal masuk: " + msg);
-                    // Pastikan sesi anonim tetap hidup jika guru salah password
                     if (!auth.currentUser) {
                         await auth.signInAnonymously();
                     }
@@ -365,8 +526,8 @@
                 setView('exam');
             };
 
-            const handleAnswer = (qid, idx) => {
-                setAnswers(prev => ({ ...prev, [qid]: idx }));
+            const handleAnswer = (qid, val) => {
+                setAnswers(prev => ({ ...prev, [qid]: val }));
             };
 
             const handleSubmitExam = async () => {
@@ -379,48 +540,73 @@
 
                 const q = selectedExam.questions || [];
                 let totalPossible = 0, earned = 0;
+                
                 q.forEach(item => {
                     const pts = parseInt(item.points) || 10;
                     totalPossible += pts;
-                    if (answers[item.id] === item.correctAnswer) earned += pts;
+                    
+                    if (item.type === 'matching') {
+                        const userAns = answers[item.id] || {};
+                        let isAllCorrect = true;
+                        
+                        if (Object.keys(userAns).length !== item.pairs.length) {
+                            isAllCorrect = false;
+                        } else {
+                            item.pairs.forEach(p => {
+                                if (userAns[p.id] !== p.id) isAllCorrect = false;
+                            });
+                        }
+                        if (isAllCorrect) earned += pts;
+                    } else {
+                        if (answers[item.id] === item.correctAnswer) earned += pts;
+                    }
                 });
+                
                 const finalScore = totalPossible > 0 ? Math.round((earned / totalPossible) * 100) : 0;
             
-            try {
-                await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('results').add({
-                    studentName: studentName.trim(), 
-                    studentClass: studentClass,
-                    examId: selectedExam.id, 
-                    examTitle: selectedExam.title,
-                    score: finalScore, 
-                    earnedPoints: earned, 
-                    totalPoints: totalPossible, 
-                    answers,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(), 
-                    userId: user.uid
-                });
-                setLastScore(finalScore);
-                setView('results');
-                setError(null);
-            } catch (err) { 
-                setError("Gagal mengirim jawaban: " + err.message); 
-            } finally { 
-                setIsSubmitting(false); 
-            }
-        };
+                try {
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('results').add({
+                        studentName: studentName.trim(), 
+                        studentClass: studentClass,
+                        examId: selectedExam.id, 
+                        examTitle: selectedExam.title,
+                        score: finalScore, 
+                        earnedPoints: earned, 
+                        totalPoints: totalPossible, 
+                        answers,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(), 
+                        userId: user.uid
+                    });
+                    setLastScore(finalScore);
+                    setView('results');
+                    setError(null);
+                } catch (err) { 
+                    setError("Gagal mengirim jawaban: " + err.message); 
+                } finally { 
+                    setIsSubmitting(false); 
+                }
+            };
 
             const addPendingQuestionToExam = () => {
                 const text = editorRef.current?.innerHTML || '';
                 if (!text.trim() || text === '<br>') { setError("Teks pertanyaan tidak boleh kosong."); return; }
                 
                 let finalQuestion = { ...pendingQuestion, text, id: Date.now().toString() };
+                
                 if (pendingQuestion.type === 'tf') {
                     finalQuestion.options = ['Benar', 'Salah'];
+                } else if (pendingQuestion.type === 'matching') {
+                    const validPairs = pendingQuestion.pairs.filter(p => p.left.trim() !== '' && p.right.trim() !== '');
+                    if (validPairs.length < 2) { 
+                        setError("Butuh minimal 2 pasangan yang tidak kosong."); 
+                        return; 
+                    }
+                    finalQuestion.pairs = validPairs;
                 }
 
                 setNewExam(prev => ({ ...prev, questions: [...prev.questions, finalQuestion] }));
                 setError(null);
-                setPendingQuestion({ type: 'mcq', text: '', options: ['', '', '', ''], correctAnswer: 0, points: 10 });
+                setPendingQuestion({ type: 'mcq', text: '', options: ['', '', '', ''], correctAnswer: 0, points: 10, pairs: [{id: '1', left: '', right: ''}, {id: '2', left: '', right: ''}] });
                 if (editorRef.current) editorRef.current.innerHTML = '';
             };
 
@@ -486,6 +672,14 @@
                                 const newOpts = [...q.options];
                                 newOpts[value.idx] = value.val;
                                 return { ...q, options: newOpts };
+                            }
+                            if (field === 'pairLeft' || field === 'pairRight') {
+                                const newPairs = [...q.pairs];
+                                newPairs[value.idx] = { 
+                                    ...newPairs[value.idx], 
+                                    [field === 'pairLeft' ? 'left' : 'right']: value.val 
+                                };
+                                return { ...q, pairs: newPairs };
                             }
                             return { ...q, [field]: value };
                         }
@@ -625,7 +819,6 @@
                 } catch (err) { setError(err.message); } finally { setIsSubmitting(false); }
             };
 
-            // Fitur Baru: Edit Langsung di Tinjauan
             const handleUpdatePreviewQuestion = (qIdx, field, value) => {
                 setPreviewExam(prev => {
                     const updatedQuestions = [...prev.questions];
@@ -633,6 +826,13 @@
                         const newOptions = [...updatedQuestions[qIdx].options];
                         newOptions[value.oIdx] = value.val;
                         updatedQuestions[qIdx] = { ...updatedQuestions[qIdx], options: newOptions };
+                    } else if (field === 'pairLeft' || field === 'pairRight') {
+                        const newPairs = [...updatedQuestions[qIdx].pairs];
+                        newPairs[value.oIdx] = { 
+                            ...newPairs[value.oIdx], 
+                            [field === 'pairLeft' ? 'left' : 'right']: value.val 
+                        };
+                        updatedQuestions[qIdx] = { ...updatedQuestions[qIdx], pairs: newPairs };
                     } else {
                         updatedQuestions[qIdx] = { ...updatedQuestions[qIdx], [field]: value };
                     }
@@ -1047,7 +1247,15 @@
                                                         <div className="flex-1 overflow-y-auto p-8 pt-6 no-scrollbar space-y-6">
                                                             {exam.questions.map((q, idx) => {
                                                                 const userAns = reviewResult.answers[q.id];
-                                                                const isCorrect = userAns === q.correctAnswer;
+                                                                let isCorrect = false;
+
+                                                                if (q.type === 'matching') {
+                                                                    const ua = userAns || {};
+                                                                    isCorrect = Object.keys(ua).length === q.pairs.length && q.pairs.every(p => ua[p.id] === p.id);
+                                                                } else {
+                                                                    isCorrect = userAns === q.correctAnswer;
+                                                                }
+                                                                
                                                                 return (
                                                                     <div key={q.id} className={`p-6 bg-white rounded-[2.5rem] border-2 shadow-sm transition-all ${isCorrect ? 'border-emerald-100' : 'border-red-100'}`}>
                                                                         <div className="flex justify-between items-start mb-6">
@@ -1060,25 +1268,29 @@
                                                                         </div>
                                                                         <div className="text-base font-bold text-slate-800 mb-8 prose-render prose prose-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: q.text }}></div>
                                                                         
-                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                                            {q.options.map((opt, oIdx) => {
-                                                                                const isSelected = userAns === oIdx;
-                                                                                const isCorrectOpt = q.correctAnswer === oIdx;
-                                                                                
-                                                                                let bgColor = 'bg-slate-50 border-slate-100 text-slate-400';
-                                                                                if (isCorrectOpt) bgColor = 'bg-emerald-50 border-emerald-500 text-emerald-700 font-bold';
-                                                                                else if (isSelected && !isCorrectOpt) bgColor = 'bg-red-50 border-red-500 text-red-700 font-bold';
+                                                                        {q.type === 'matching' ? (
+                                                                            <MatchingComponent question={q} answer={userAns} isReview={true} />
+                                                                        ) : (
+                                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                                                {q.options.map((opt, oIdx) => {
+                                                                                    const isSelected = userAns === oIdx;
+                                                                                    const isCorrectOpt = q.correctAnswer === oIdx;
+                                                                                    
+                                                                                    let bgColor = 'bg-slate-50 border-slate-100 text-slate-400';
+                                                                                    if (isCorrectOpt) bgColor = 'bg-emerald-50 border-emerald-500 text-emerald-700 font-bold';
+                                                                                    else if (isSelected && !isCorrectOpt) bgColor = 'bg-red-50 border-red-500 text-red-700 font-bold';
 
-                                                                                return (
-                                                                                    <div key={oIdx} className={`px-4 py-3 rounded-xl border flex items-center gap-3 transition-all ${bgColor}`}>
-                                                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${isCorrectOpt ? 'bg-emerald-500 text-white' : (isSelected ? 'bg-red-500 text-white' : 'bg-white border text-slate-300')}`}>
-                                                                                            {q.type === 'tf' ? (oIdx === 0 ? 'B' : 'S') : String.fromCharCode(65 + oIdx)}
+                                                                                    return (
+                                                                                        <div key={oIdx} className={`px-4 py-3 rounded-xl border flex items-center gap-3 transition-all ${bgColor}`}>
+                                                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${isCorrectOpt ? 'bg-emerald-500 text-white' : (isSelected ? 'bg-red-500 text-white' : 'bg-white border text-slate-300')}`}>
+                                                                                                {q.type === 'tf' ? (oIdx === 0 ? 'B' : 'S') : String.fromCharCode(65 + oIdx)}
+                                                                                            </div>
+                                                                                            <span className="text-sm">{opt}</span>
                                                                                         </div>
-                                                                                        <span className="text-sm">{opt}</span>
-                                                                                    </div>
-                                                                                );
-                                                                            })}
-                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 );
                                                             })}
@@ -1272,6 +1484,9 @@
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full uppercase">Pertanyaan {idx + 1}</span>
                                                                         {editingPreviewIdx !== idx && <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{q.points} Pts</span>}
+                                                                        <span className="text-[9px] font-black text-slate-400 border border-slate-200 px-2 py-0.5 rounded-md uppercase">
+                                                                            {q.type === 'matching' ? 'Menjodohkan' : (q.type === 'tf' ? 'Benar/Salah' : 'PG')}
+                                                                        </span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
                                                                         {editingPreviewIdx === idx ? (
@@ -1295,26 +1510,51 @@
                                                                             onBlur={(e) => handleUpdatePreviewQuestion(idx, 'text', e.currentTarget.innerHTML)}
                                                                             dangerouslySetInnerHTML={{ __html: q.text }}
                                                                         ></div>
-                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                                            {q.options.map((opt, oIdx) => (
-                                                                                <div key={oIdx} className={`px-4 py-2 rounded-xl border flex items-stretch gap-3 bg-white ${q.correctAnswer === oIdx ? 'border-emerald-500' : 'border-slate-200'}`}>
-                                                                                    <button onClick={() => handleUpdatePreviewQuestion(idx, 'correctAnswer', oIdx)} className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs self-center flex-shrink-0 ${q.correctAnswer === oIdx ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white border text-slate-300'}`}>{String.fromCharCode(65 + oIdx)}</button>
-                                                                                    <textarea dir="auto" className="flex-1 bg-transparent text-xs font-bold outline-none h-auto min-h-[48px] max-h-32 overflow-y-auto break-words resize-none py-2" value={opt} onChange={(e) => handleUpdatePreviewQuestion(idx, 'option', {oIdx: oIdx, val: e.target.value})} />
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
+                                                                        
+                                                                        {q.type === 'matching' ? (
+                                                                            <div className="space-y-2">
+                                                                                {q.pairs.map((p, pIdx) => (
+                                                                                    <div key={p.id} className="flex gap-2">
+                                                                                        <input type="text" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" value={p.left} onChange={(e) => handleUpdatePreviewQuestion(idx, 'pairLeft', {oIdx: pIdx, val: e.target.value})} />
+                                                                                        <input type="text" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" value={p.right} onChange={(e) => handleUpdatePreviewQuestion(idx, 'pairRight', {oIdx: pIdx, val: e.target.value})} />
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                                {q.options.map((opt, oIdx) => (
+                                                                                    <div key={oIdx} className={`px-4 py-2 rounded-xl border flex items-stretch gap-3 bg-white ${q.correctAnswer === oIdx ? 'border-emerald-500' : 'border-slate-200'}`}>
+                                                                                        <button onClick={() => handleUpdatePreviewQuestion(idx, 'correctAnswer', oIdx)} className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs self-center flex-shrink-0 ${q.correctAnswer === oIdx ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white border text-slate-300'}`}>{String.fromCharCode(65 + oIdx)}</button>
+                                                                                        <textarea dir="auto" className="flex-1 bg-transparent text-xs font-bold outline-none h-auto min-h-[48px] max-h-32 overflow-y-auto break-words resize-none py-2" value={opt} onChange={(e) => handleUpdatePreviewQuestion(idx, 'option', {oIdx: oIdx, val: e.target.value})} />
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 ) : (
                                                                     <>
                                                                         <div className="text-sm font-bold text-slate-800 leading-relaxed prose-render prose prose-sm" dangerouslySetInnerHTML={{ __html: q.text }}></div>
-                                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                                            {q.options.map((opt, oIdx) => (
-                                                                                <div key={oIdx} className={`px-4 py-2 rounded-xl border flex items-stretch gap-3 ${q.correctAnswer === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-transparent text-slate-400'}`}>
-                                                                                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs self-center flex-shrink-0 ${q.correctAnswer === oIdx ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white border text-slate-300'}`}>{String.fromCharCode(65 + oIdx)}</span>
-                                                                                    <span className="text-xs font-bold break-words self-center flex-1 py-2">{opt}</span>
-                                                                                </div>
-                                                                            ))}
-                                                                        </div>
+                                                                        
+                                                                        {q.type === 'matching' ? (
+                                                                            <div className="bg-slate-50 p-4 rounded-2xl space-y-2 border border-slate-100">
+                                                                                {q.pairs.map((p, pIdx) => (
+                                                                                    <div key={p.id} className="flex items-center gap-3 text-xs font-bold text-slate-600">
+                                                                                        <span className="flex-1 text-right truncate">{p.left}</span>
+                                                                                        <Icon name="arrow-right" className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+                                                                                        <span className="flex-1 text-left truncate">{p.right}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                                {q.options.map((opt, oIdx) => (
+                                                                                    <div key={oIdx} className={`px-4 py-2 rounded-xl border flex items-stretch gap-3 ${q.correctAnswer === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-transparent text-slate-400'}`}>
+                                                                                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs self-center flex-shrink-0 ${q.correctAnswer === oIdx ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white border text-slate-300'}`}>{String.fromCharCode(65 + oIdx)}</span>
+                                                                                        <span className="text-xs font-bold break-words self-center flex-1 py-2">{opt}</span>
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
                                                                     </>
                                                                 )}
                                                             </div>
@@ -1461,17 +1701,18 @@
                                                 </div>
 
                                                 <div className="grid grid-cols-12 gap-4 items-center">
-                                                    <div className="col-span-8 flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
-                                                        <button onClick={() => setPendingQuestion({...pendingQuestion, type: 'mcq'})} className={`flex-1 px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${pendingQuestion.type === 'mcq' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Pilihan Ganda</button>
-                                                        <button onClick={() => setPendingQuestion({...pendingQuestion, type: 'tf'})} className={`flex-1 px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${pendingQuestion.type === 'tf' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Benar / Salah</button>
+                                                    <div className="col-span-12 md:col-span-9 flex flex-wrap sm:flex-nowrap bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                                                        <button onClick={() => setPendingQuestion({...pendingQuestion, type: 'mcq'})} className={`flex-1 px-3 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${pendingQuestion.type === 'mcq' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Pilihan Ganda</button>
+                                                        <button onClick={() => setPendingQuestion({...pendingQuestion, type: 'tf'})} className={`flex-1 px-3 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${pendingQuestion.type === 'tf' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Benar / Salah</button>
+                                                        <button onClick={() => setPendingQuestion({...pendingQuestion, type: 'matching'})} className={`flex-1 px-3 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${pendingQuestion.type === 'matching' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400'}`}>Menjodohkan</button>
                                                     </div>
-                                                    <div className="col-span-4 flex items-center bg-white px-4 py-1 rounded-xl shadow-sm border border-slate-100">
+                                                    <div className="col-span-12 md:col-span-3 flex items-center bg-white px-4 py-1.5 rounded-xl shadow-sm border border-slate-100">
                                                         <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mr-3">Poin</label>
                                                         <input type="number" className="w-full bg-transparent outline-none font-black text-slate-800 text-sm text-center" value={pendingQuestion.points} onChange={e => setPendingQuestion({...pendingQuestion, points: e.target.value})} />
                                                     </div>
                                                 </div>
 
-                                                {pendingQuestion.type === 'mcq' ? (
+                                                {pendingQuestion.type === 'mcq' && (
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in items-stretch">
                                                         {pendingQuestion.options.map((opt, oIdx) => (
                                                             <div key={oIdx} className="flex items-stretch gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
@@ -1480,7 +1721,9 @@
                                                             </div>
                                                         ))}
                                                     </div>
-                                                ) : (
+                                                )}
+                                                
+                                                {pendingQuestion.type === 'tf' && (
                                                     <div className="grid grid-cols-2 gap-3 animate-fade-in">
                                                         {['Benar', 'Salah'].map((label, idx) => (
                                                             <div key={idx} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer ${pendingQuestion.correctAnswer === idx ? 'bg-indigo-50 border-indigo-500' : 'bg-white border-slate-100'}`} onClick={() => setPendingQuestion({...pendingQuestion, correctAnswer: idx})}>
@@ -1488,6 +1731,20 @@
                                                                 <div className={`w-5 h-5 rounded-full border-2 ${pendingQuestion.correctAnswer === idx ? 'border-indigo-500 bg-indigo-500' : 'border-slate-200'}`}></div>
                                                             </div>
                                                         ))}
+                                                    </div>
+                                                )}
+
+                                                {pendingQuestion.type === 'matching' && (
+                                                    <div className="space-y-3 animate-fade-in">
+                                                        {pendingQuestion.pairs.map((pair, pIdx) => (
+                                                            <div key={pair.id} className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                                                                <input type="text" className="flex-1 bg-transparent border-b border-slate-200 outline-none text-xs font-bold py-1 placeholder-slate-300" placeholder="Bagian A (Pertanyaan/Istilah)" value={pair.left} onChange={(e) => { const np = [...pendingQuestion.pairs]; np[pIdx].left = e.target.value; setPendingQuestion({...pendingQuestion, pairs: np}); }} />
+                                                                <Icon name="arrow-right" className="w-4 h-4 text-indigo-300 flex-shrink-0" />
+                                                                <input type="text" className="flex-1 bg-transparent border-b border-slate-200 outline-none text-xs font-bold py-1 placeholder-slate-300" placeholder="Bagian B (Jawaban/Definisi)" value={pair.right} onChange={(e) => { const np = [...pendingQuestion.pairs]; np[pIdx].right = e.target.value; setPendingQuestion({...pendingQuestion, pairs: np}); }} />
+                                                                <button onClick={() => { const np = pendingQuestion.pairs.filter((_, i) => i !== pIdx); setPendingQuestion({...pendingQuestion, pairs: np}); }} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Icon name="trash-2" className="w-4 h-4" /></button>
+                                                            </div>
+                                                        ))}
+                                                        <button onClick={() => setPendingQuestion({...pendingQuestion, pairs: [...pendingQuestion.pairs, {id: Date.now().toString(), left: '', right: ''}]})} className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-white border-2 border-dashed border-indigo-200 w-full py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-50 transition-all"><Icon name="plus-circle" className="w-4 h-4" /> Tambah Pasangan</button>
                                                     </div>
                                                 )}
 
@@ -1516,7 +1773,10 @@
                                                             <div className="flex justify-between items-start">
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-sm font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">Soal {qIdx + 1}</span>
-                                                                    {editingId !== q.id && <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">• {q.points} Pts • {q.type === 'tf' ? 'Benar/Salah' : 'Pilihan Ganda'}</span>}
+                                                                    {editingId !== q.id && <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">• {q.points} Pts</span>}
+                                                                    <span className="text-[10px] font-black text-slate-400 border border-slate-200 px-2 py-0.5 rounded-md uppercase">
+                                                                        {q.type === 'matching' ? 'Menjodohkan' : (q.type === 'tf' ? 'Benar/Salah' : 'PG')}
+                                                                    </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-1">
                                                                     <div className="flex flex-col -space-y-1 mr-2 bg-slate-50 rounded-lg border p-1">
@@ -1536,24 +1796,45 @@
                                                                         <div className="w-px h-4 bg-slate-200"></div>
                                                                         <input type="number" className="bg-transparent outline-none font-black text-slate-800 text-sm w-12 text-center" value={q.points} onChange={(e) => handleUpdateInlineQuestion(q.id, 'points', e.target.value)} placeholder="10" />
                                                                     </div>
-                                                                    <div contentEditable="true" dir="auto" className="text-sm font-bold text-slate-800 p-3 bg-slate-50 rounded-xl outline-none" onBlur={(e) => handleUpdateInlineQuestion(q.id, 'text', e.currentTarget.innerHTML)} dangerouslySetInnerHTML={{ __html: q.text }}></div>
+                                                                    <div contentEditable="true" dir="auto" className="text-sm font-bold text-slate-800 p-3 bg-slate-50 rounded-xl outline-none border border-slate-200" onBlur={(e) => handleUpdateInlineQuestion(q.id, 'text', e.currentTarget.innerHTML)} dangerouslySetInnerHTML={{ __html: q.text }}></div>
                                                                 </div>
                                                             ) : (
                                                                 <div className="text-sm font-bold text-slate-800 prose-render prose prose-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: q.text }}></div>
                                                             )}
                                                             
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                                {q.options.map((opt, oIdx) => (
-                                                                    <div key={oIdx} className={`px-4 py-2 rounded-xl border flex items-stretch gap-3 ${q.correctAnswer === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 text-slate-400'}`}>
-                                                                        <button disabled={editingId !== q.id} onClick={() => handleUpdateInlineQuestion(q.id, 'correctAnswer', oIdx)} className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs self-center flex-shrink-0 ${q.correctAnswer === oIdx ? 'bg-emerald-500 text-white' : 'bg-white border'}`}>{String.fromCharCode(65 + oIdx)}</button>
-                                                                        {editingId === q.id ? (
-                                                                            <textarea dir="auto" className="flex-1 bg-transparent text-sm font-bold outline-none h-auto min-h-[48px] max-h-32 overflow-y-auto break-words resize-none py-2" value={opt} onChange={(e) => handleUpdateInlineQuestion(q.id, 'option', {idx: oIdx, val: e.target.value})} />
-                                                                        ) : (
-                                                                            <span className="text-sm font-bold break-words self-center flex-1 py-2">{opt || '-'}</span>
-                                                                        )}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
+                                                            {q.type === 'matching' ? (
+                                                                <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                                                    {q.pairs.map((p, oIdx) => (
+                                                                        <div key={p.id} className="flex gap-2">
+                                                                            {editingId === q.id ? (
+                                                                                <>
+                                                                                    <input type="text" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" value={p.left} onChange={(e) => handleUpdateInlineQuestion(q.id, 'pairLeft', {idx: oIdx, val: e.target.value})} />
+                                                                                    <input type="text" className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs" value={p.right} onChange={(e) => handleUpdateInlineQuestion(q.id, 'pairRight', {idx: oIdx, val: e.target.value})} />
+                                                                                </>
+                                                                            ) : (
+                                                                                <div className="flex-1 flex items-center justify-between text-xs font-bold text-slate-600 gap-4">
+                                                                                    <span className="flex-1 text-right">{p.left}</span>
+                                                                                    <Icon name="arrow-right" className="w-3 h-3 text-slate-300" />
+                                                                                    <span className="flex-1 text-left">{p.right}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                                    {q.options.map((opt, oIdx) => (
+                                                                        <div key={oIdx} className={`px-4 py-2 rounded-xl border flex items-stretch gap-3 ${q.correctAnswer === oIdx ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 text-slate-400'}`}>
+                                                                            <button disabled={editingId !== q.id} onClick={() => handleUpdateInlineQuestion(q.id, 'correctAnswer', oIdx)} className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs self-center flex-shrink-0 ${q.correctAnswer === oIdx ? 'bg-emerald-500 text-white' : 'bg-white border'}`}>{String.fromCharCode(65 + oIdx)}</button>
+                                                                            {editingId === q.id ? (
+                                                                                <textarea dir="auto" className="flex-1 bg-transparent text-sm font-bold outline-none h-auto min-h-[48px] max-h-32 overflow-y-auto break-words resize-none py-2" value={opt} onChange={(e) => handleUpdateInlineQuestion(q.id, 'option', {idx: oIdx, val: e.target.value})} />
+                                                                            ) : (
+                                                                                <span className="text-sm font-bold break-words self-center flex-1 py-2">{opt || '-'}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -1636,14 +1917,23 @@
                                         </div>
                                         <div className="text-[9px] font-black text-indigo-400 bg-indigo-50 px-2 py-1 rounded-md whitespace-nowrap">{selectedExam.questions?.[currentQuestionIndex]?.points || 10} Pts</div>
                                     </div>
-                                    <div className="space-y-3 sm:space-y-4">
-                                        {selectedExam.questions?.[currentQuestionIndex]?.options.map((opt, idx) => (
-                                            <button key={idx} onClick={() => handleAnswer(selectedExam.questions[currentQuestionIndex].id, idx)} className={`w-full text-left p-4 sm:p-5 rounded-[1.5rem] sm:rounded-2xl border-2 flex items-center gap-3 sm:gap-4 transition-all ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 text-slate-600'}`}>
-                                                <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'bg-indigo-600 text-white' : 'bg-white border text-slate-400'}`}>{selectedExam.questions?.[currentQuestionIndex]?.type === 'tf' ? (idx === 0 ? 'B' : 'S') : String.fromCharCode(65 + idx)}</span>
-                                                <span className="font-bold text-sm sm:text-base leading-snug">{opt}</span>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    
+                                    {selectedExam.questions?.[currentQuestionIndex]?.type === 'matching' ? (
+                                        <MatchingComponent 
+                                            question={selectedExam.questions[currentQuestionIndex]}
+                                            answer={answers[selectedExam.questions[currentQuestionIndex].id]}
+                                            onAnswer={(val) => handleAnswer(selectedExam.questions[currentQuestionIndex].id, val)}
+                                        />
+                                    ) : (
+                                        <div className="space-y-3 sm:space-y-4">
+                                            {selectedExam.questions?.[currentQuestionIndex]?.options.map((opt, idx) => (
+                                                <button key={idx} onClick={() => handleAnswer(selectedExam.questions[currentQuestionIndex].id, idx)} className={`w-full text-left p-4 sm:p-5 rounded-[1.5rem] sm:rounded-2xl border-2 flex items-center gap-3 sm:gap-4 transition-all ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 text-slate-600'}`}>
+                                                    <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'bg-indigo-600 text-white' : 'bg-white border text-slate-400'}`}>{selectedExam.questions?.[currentQuestionIndex]?.type === 'tf' ? (idx === 0 ? 'B' : 'S') : String.fromCharCode(65 + idx)}</span>
+                                                    <span className="font-bold text-sm sm:text-base leading-snug">{opt}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                                     <button disabled={currentQuestionIndex === 0} onClick={() => setCurrentQuestionIndex(p => p - 1)} className="w-full sm:flex-1 py-4 bg-white border rounded-2xl font-bold text-slate-400 disabled:opacity-30 text-xs transition-all uppercase order-2 sm:order-1">KEMBALI</button>
@@ -1724,7 +2014,15 @@
                                 <div className="space-y-4">
                                     {selectedExam.questions.map((q, idx) => {
                                         const userAns = answers[q.id];
-                                        const isCorrect = userAns === q.correctAnswer;
+                                        let isCorrect = false;
+                                        
+                                        if (q.type === 'matching') {
+                                            const ua = userAns || {};
+                                            isCorrect = Object.keys(ua).length === q.pairs.length && q.pairs.every(p => ua[p.id] === p.id);
+                                        } else {
+                                            isCorrect = userAns === q.correctAnswer;
+                                        }
+                                        
                                         return (
                                             <div key={q.id} className={`p-5 sm:p-6 bg-white rounded-[2rem] sm:rounded-[2.5rem] border-2 shadow-sm transition-all ${isCorrect ? 'border-emerald-100' : 'border-red-100'}`}>
                                                 <div className="flex justify-between items-start mb-6">
@@ -1737,25 +2035,33 @@
                                                 </div>
                                                 <div className="text-base font-bold text-slate-800 mb-8 prose-render prose prose-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: q.text }}></div>
                                                 
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                    {q.options.map((opt, oIdx) => {
-                                                        const isSelected = userAns === oIdx;
-                                                        const isCorrectOpt = q.correctAnswer === oIdx;
-                                                        
-                                                        let bgColor = 'bg-slate-50 border-slate-100 text-slate-400';
-                                                        if (isCorrectOpt) bgColor = 'bg-emerald-50 border-emerald-500 text-emerald-700 font-bold';
-                                                        else if (isSelected && !isCorrectOpt) bgColor = 'bg-red-50 border-red-500 text-red-700 font-bold';
+                                                {q.type === 'matching' ? (
+                                                    <MatchingComponent 
+                                                        question={q} 
+                                                        answer={userAns} 
+                                                        isReview={true} 
+                                                    />
+                                                ) : (
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        {q.options.map((opt, oIdx) => {
+                                                            const isSelected = userAns === oIdx;
+                                                            const isCorrectOpt = q.correctAnswer === oIdx;
+                                                            
+                                                            let bgColor = 'bg-slate-50 border-slate-100 text-slate-400';
+                                                            if (isCorrectOpt) bgColor = 'bg-emerald-50 border-emerald-500 text-emerald-700 font-bold';
+                                                            else if (isSelected && !isCorrectOpt) bgColor = 'bg-red-50 border-red-500 text-red-700 font-bold';
 
-                                                        return (
-                                                            <div key={oIdx} className={`px-4 py-3 rounded-xl border flex items-center gap-3 transition-all ${bgColor}`}>
-                                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${isCorrectOpt ? 'bg-emerald-500 text-white' : (isSelected ? 'bg-red-500 text-white' : 'bg-white border text-slate-300')}`}>
-                                                                    {q.type === 'tf' ? (oIdx === 0 ? 'B' : 'S') : String.fromCharCode(65 + oIdx)}
+                                                            return (
+                                                                <div key={oIdx} className={`px-4 py-3 rounded-xl border flex items-center gap-3 transition-all ${bgColor}`}>
+                                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs flex-shrink-0 ${isCorrectOpt ? 'bg-emerald-500 text-white' : (isSelected ? 'bg-red-500 text-white' : 'bg-white border text-slate-300')}`}>
+                                                                        {q.type === 'tf' ? (oIdx === 0 ? 'B' : 'S') : String.fromCharCode(65 + oIdx)}
+                                                                    </div>
+                                                                    <span className="text-sm leading-snug">{opt}</span>
                                                                 </div>
-                                                                <span className="text-sm leading-snug">{opt}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
