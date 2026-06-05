@@ -478,32 +478,10 @@
                 try {
                     const userCred = await auth.signInWithEmailAndPassword(adminEmail, adminPassword);
                     
-                    // Force token refresh agar Firestore mengenali auth state terbaru
-                    await userCred.user.getIdToken(true);
-                    
-                    // Tunggu sebentar agar auth state tersebar
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    // Retry logic: coba baca dokumen sampai 3 kali
-                    let userDoc = null;
-                    let lastErr = null;
-                    for (let attempt = 1; attempt <= 3; attempt++) {
-                        try {
-                            userDoc = await db.collection('artifacts').doc(appId)
-                                .collection('public').doc('data')
-                                .collection('users').doc(userCred.user.uid).get();
-                            break; // berhasil, keluar dari loop
-                        } catch (err) {
-                            lastErr = err;
-                            if (attempt < 3) {
-                                await new Promise(resolve => setTimeout(resolve, attempt * 500));
-                            }
-                        }
-                    }
-                    
-                    if (!userDoc) {
-                        throw lastErr || new Error("Gagal membaca data pengguna.");
-                    }
+                    // Langsung membaca data user tanpa delay atau retry loop
+                    const userDoc = await db.collection('artifacts').doc(appId)
+                        .collection('public').doc('data')
+                        .collection('users').doc(userCred.user.uid).get();
 
                     if (userDoc.exists && userDoc.data().role === 'guru') {
                         setView('admin_dashboard');
