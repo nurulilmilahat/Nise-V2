@@ -1366,12 +1366,12 @@
                                                 return (
                                                     <div key={exam.id} className="bg-white p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
                                                         <div>
-                                                            <div className="flex flex-wrap justify-between items-start mb-4 gap-3">
-                                                                <div className="flex flex-wrap gap-2">
-                                                                    {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase text-center break-words">{exam.category}</span>}
-                                                                    {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase whitespace-nowrap">Kls {exam.kelas}</span>}
+                                                            <div className="flex justify-between items-start mb-4">
+                                                                <div className="flex gap-2">
+                                                                    {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">{exam.category}</span>}
+                                                                    {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">Kls {exam.kelas}</span>}
                                                                 </div>
-                                                                <div className="flex flex-wrap gap-1">
+                                                                <div className="flex gap-1">
                                                                     <button onClick={() => { setPreviewExam(JSON.parse(JSON.stringify(exam))); setEditingPreviewIdx(null); }} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-all" title="Tinjau & Edit Isi Soal">
                                                                         <Icon name="search" className="w-4 h-4" />
                                                                     </button>
@@ -1388,7 +1388,7 @@
                                                                     <button onClick={() => deleteExam(exam.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1.5"><Icon name="trash-2" className="w-4 h-4" /></button>
                                                                 </div>
                                                             </div>
-                                                            <h4 className="text-xl font-bold mb-2 break-words">{exam.title}</h4>
+                                                            <h4 className="text-xl font-bold mb-2">{exam.title}</h4>
                                                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                                                                 <div className="text-slate-400 text-[10px] font-black uppercase flex items-center gap-4"><span>{exam.duration}m</span><span>{exam.questions?.length} Qs</span></div>
                                                                 {exam.isRandomized && <span className="text-[8px] font-black px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Icon name="shuffle" className="w-2.5 h-2.5" /> Acak</span>}
@@ -1873,14 +1873,14 @@
                                             return (
                                                 <div key={exam.id} className={`bg-white p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between hover:shadow-lg transition-all group ${schedule.isLocked || schedule.isExpired ? 'opacity-70 grayscale-[0.5]' : ''}`}>
                                                     <div>
-                                                        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase text-center break-words">{exam.category}</span>}
-                                                                {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase whitespace-nowrap">Kls {exam.kelas}</span>}
+                                                        <div className="flex justify-between items-center mb-4">
+                                                            <div className="flex gap-2">
+                                                                {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">{exam.category}</span>}
+                                                                {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">Kls {exam.kelas}</span>}
                                                             </div>
-                                                            <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">{exam.duration}m • {exam.questions?.length} Qs</div>
+                                                            <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{exam.duration}m • {exam.questions?.length} Qs</div>
                                                         </div>
-                                                        <h4 className="text-xl font-black mb-2 leading-tight break-words">{exam.title}</h4>
+                                                        <h4 className="text-xl font-black mb-2 leading-tight">{exam.title}</h4>
                                                         
                                                         {schedule.label && (
                                                             <div className={`text-[9px] font-black uppercase tracking-widest mb-4 flex items-center gap-1.5 ${schedule.isExpired ? 'text-red-500' : (schedule.isLocked ? 'text-amber-500' : 'text-emerald-500')}`}>
