@@ -478,13 +478,24 @@
                 try {
                     const userCred = await auth.signInWithEmailAndPassword(adminEmail, adminPassword);
                     
-                    // Karena rules sudah open, kita mem-bypass pembacaan data 'users' 
-                    // yang sering bikin timeout/hang sampai 15 detik.
-                    // Langsung arahkan ke dashboard setelah login Email/Password sukses.
-                    setView('admin_dashboard');
-                    setError(null);
-                    setAdminEmail('');
-                    setAdminPassword('');
+                    // Baca data user langsung tanpa looping (for) dan tanpa delay (setTimeout)
+                    const userDoc = await db.collection('artifacts')
+                                            .doc(appId)
+                                            .collection('public')
+                                            .doc('data')
+                                            .collection('users')
+                                            .doc(userCred.user.uid)
+                                            .get();
+
+                    if (userDoc.exists && userDoc.data().role === 'guru') {
+                        setView('admin_dashboard');
+                        setError(null);
+                        setAdminEmail('');
+                        setAdminPassword('');
+                    } else {
+                        setError("Akun ini bukan akun Guru.");
+                        await auth.signOut();
+                    }
                 } catch (err) {
                     let msg = err.message;
                     if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
