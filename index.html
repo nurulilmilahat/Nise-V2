@@ -1366,12 +1366,12 @@
                                                 return (
                                                     <div key={exam.id} className="bg-white p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
                                                         <div>
-                                                            <div className="flex justify-between items-start mb-4">
-                                                                <div className="flex gap-2">
-                                                                    {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">{exam.category}</span>}
-                                                                    {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">Kls {exam.kelas}</span>}
+                                                            <div className="flex flex-wrap justify-between items-start mb-4 gap-3">
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase text-center break-words">{exam.category}</span>}
+                                                                    {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase whitespace-nowrap">Kls {exam.kelas}</span>}
                                                                 </div>
-                                                                <div className="flex gap-1">
+                                                                <div className="flex flex-wrap gap-1">
                                                                     <button onClick={() => { setPreviewExam(JSON.parse(JSON.stringify(exam))); setEditingPreviewIdx(null); }} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 transition-all" title="Tinjau & Edit Isi Soal">
                                                                         <Icon name="search" className="w-4 h-4" />
                                                                     </button>
@@ -1388,7 +1388,7 @@
                                                                     <button onClick={() => deleteExam(exam.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1.5"><Icon name="trash-2" className="w-4 h-4" /></button>
                                                                 </div>
                                                             </div>
-                                                            <h4 className="text-xl font-bold mb-2">{exam.title}</h4>
+                                                            <h4 className="text-xl font-bold mb-2 break-words">{exam.title}</h4>
                                                             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                                                                 <div className="text-slate-400 text-[10px] font-black uppercase flex items-center gap-4"><span>{exam.duration}m</span><span>{exam.questions?.length} Qs</span></div>
                                                                 {exam.isRandomized && <span className="text-[8px] font-black px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-500 uppercase tracking-widest flex items-center gap-1"><Icon name="shuffle" className="w-2.5 h-2.5" /> Acak</span>}
@@ -1873,14 +1873,14 @@
                                             return (
                                                 <div key={exam.id} className={`bg-white p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between hover:shadow-lg transition-all group ${schedule.isLocked || schedule.isExpired ? 'opacity-70 grayscale-[0.5]' : ''}`}>
                                                     <div>
-                                                        <div className="flex justify-between items-center mb-4">
-                                                            <div className="flex gap-2">
-                                                                {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">{exam.category}</span>}
-                                                                {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">Kls {exam.kelas}</span>}
+                                                        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {exam.category && <span className="bg-indigo-50 text-indigo-600 text-[10px] font-black px-3 py-1 rounded-full uppercase text-center break-words">{exam.category}</span>}
+                                                                {exam.kelas && <span className="bg-emerald-50 text-emerald-600 text-[10px] font-black px-3 py-1 rounded-full uppercase whitespace-nowrap">Kls {exam.kelas}</span>}
                                                             </div>
-                                                            <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{exam.duration}m • {exam.questions?.length} Qs</div>
+                                                            <div className="text-slate-400 text-[10px] font-black uppercase tracking-widest whitespace-nowrap">{exam.duration}m • {exam.questions?.length} Qs</div>
                                                         </div>
-                                                        <h4 className="text-xl font-black mb-2 leading-tight">{exam.title}</h4>
+                                                        <h4 className="text-xl font-black mb-2 leading-tight break-words">{exam.title}</h4>
                                                         
                                                         {schedule.label && (
                                                             <div className={`text-[9px] font-black uppercase tracking-widest mb-4 flex items-center gap-1.5 ${schedule.isExpired ? 'text-red-500' : (schedule.isLocked ? 'text-amber-500' : 'text-emerald-500')}`}>
@@ -1925,7 +1925,7 @@
                                                 {selectedExam.category && <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 px-2 py-1 rounded-md">{selectedExam.category}</span>}
                                                 {selectedExam.kelas && <span className="text-[10px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-md">Kls {selectedExam.kelas}</span>}
                                             </div>
-                                            <div className="text-base sm:text-lg md:text-xl font-bold leading-relaxed prose-render prose" dangerouslySetInnerHTML={{ __html: selectedExam.questions?.[currentQuestionIndex]?.text }}></div>
+                                            <div className="text-base sm:text-lg md:text-xl font-bold leading-relaxed prose-render prose text-start" dir="auto" style={{ unicodeBidi: 'plaintext' }} dangerouslySetInnerHTML={{ __html: selectedExam.questions?.[currentQuestionIndex]?.text }}></div>
                                         </div>
                                         <div className="text-[9px] font-black text-indigo-400 bg-indigo-50 px-2 py-1 rounded-md whitespace-nowrap">{selectedExam.questions?.[currentQuestionIndex]?.points || 10} Pts</div>
                                     </div>
@@ -1939,9 +1939,9 @@
                                     ) : (
                                         <div className="space-y-3 sm:space-y-4">
                                             {selectedExam.questions?.[currentQuestionIndex]?.options.map((opt, idx) => (
-                                                <button key={idx} onClick={() => handleAnswer(selectedExam.questions[currentQuestionIndex].id, idx)} className={`w-full text-left p-4 sm:p-5 rounded-[1.5rem] sm:rounded-2xl border-2 flex items-center gap-3 sm:gap-4 transition-all ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 text-slate-600'}`}>
+                                                <button key={idx} onClick={() => handleAnswer(selectedExam.questions[currentQuestionIndex].id, idx)} className={`w-full text-start p-4 sm:p-5 rounded-[1.5rem] sm:rounded-2xl border-2 flex items-center gap-3 sm:gap-4 transition-all ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'border-indigo-600 bg-indigo-50 ring-2 ring-indigo-200' : 'border-slate-50 bg-slate-50/50 hover:border-slate-200 text-slate-600'}`}>
                                                     <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 ${answers[selectedExam.questions[currentQuestionIndex].id] === idx ? 'bg-indigo-600 text-white' : 'bg-white border text-slate-400'}`}>{selectedExam.questions?.[currentQuestionIndex]?.type === 'tf' ? (idx === 0 ? 'B' : 'S') : String.fromCharCode(65 + idx)}</span>
-                                                    <span className="font-bold text-sm sm:text-base leading-snug">{opt}</span>
+                                                    <span className="font-bold text-sm sm:text-base leading-snug flex-1 text-start" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{opt}</span>
                                                 </button>
                                             ))}
                                         </div>
